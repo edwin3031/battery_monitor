@@ -27,7 +27,7 @@ class BatteryController:
 
         # Suscribir la vista y el controlador como observadores
         self.model.add_observer(self.view)
-        self.model.add_observer(self)  # Para actualizar el icono del tray
+        self.model.add_observer(self)
 
         self.tray_icon = None
         self._setup_tray()
@@ -36,34 +36,53 @@ class BatteryController:
         self.view.set_button_state(True)
         self.view.withdraw()
 
+    def _get_asset_icon_path(self):
+        """Obtiene la ruta absoluta al icono de la carpeta assets."""
+        # base_dir será '.../mi_proyecto/controller'
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Subimos un nivel ("..") para llegar a '.../mi_proyecto' y luego entramos a 'assets'
+        assets_dir = os.path.abspath(os.path.join(base_dir, "..", "assets"))
+        
+        # Preferencia de extensiones según el SO
+        icon_ico = os.path.join(assets_dir, "battery.ico")
+        icon_png = os.path.join(assets_dir, "battery.png")
+        
+        if os.path.exists(icon_ico):
+            return icon_ico
+        elif os.path.exists(icon_png):
+            return icon_png
+        return None
+
+    def _load_tray_image(self):
+        """Carga el icono personalizado desde la carpeta assets."""
+        icon_path = self._get_asset_icon_path()
+        if icon_path:
+            try:
+                return Image.open(icon_path)
+            except Exception as e:
+                print(f"Error cargando icono de assets: {e}")
+        
+        # Respaldo en caso de no encontrar el archivo en assets
+        return self._create_fallback_image()
+
+    def _create_fallback_image(self):
+        """Genera una imagen básica si no existe un icono en assets/."""
+        image = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
+        dc = ImageDraw.Draw(image)
+        dc.rectangle((10, 10, 54, 54), fill=(33, 150, 243))
+        return image
+
     def update(self, data):
-        """Método Observer para actualizar dinámicamente el icono de la bandeja."""
+        """Método Observer para actualizar el tooltip del tray al cambiar la batería."""
         percent = data["percent"]
         plugged = data["plugged"]
         if self.tray_icon:
             try:
-                self.tray_icon.icon = self._create_dynamic_image(percent, plugged)
-                self.tray_icon.title = f"Battery Monitor - {percent}%"
+                state_str = "Cargando" if plugged else "En uso"
+                self.tray_icon.title = f"Monitor de Batería: {percent}% ({state_str})"
             except Exception:
                 pass
-
-    def _create_dynamic_image(self, percent, plugged):
-        """Genera dinámicamente una imagen con el porcentaje y estado de batería."""
-        image = Image.new('RGB', (64, 64), color=(33, 150, 243) if not plugged else (76, 175, 80))
-        dc = ImageDraw.Draw(image)
-        
-        # Dibujar marco blanco
-        dc.rectangle((4, 4, 60, 60), outline=(255, 255, 255), width=3)
-        
-        # Escribir el porcentaje dentro del icono
-        text = f"{int(percent)}"
-        try:
-            font = ImageFont.load_default()
-            dc.text((14, 20), text, fill=(255, 255, 255), font=font)
-        except Exception:
-            dc.text((14, 20), text, fill=(255, 255, 255))
-            
-        return image
 
     def _setup_tray(self):
         if not pystray:
@@ -73,7 +92,7 @@ class BatteryController:
             item('Mostrar / Ocultar Ventana', self.toggle_window_visibility),
             item('Salir Completamente', self.quit_app)
         )
-        initial_image = self._create_dynamic_image(100, False)
+        initial_image = self._load_tray_image()
         self.tray_icon = pystray.Icon("battery_monitor", initial_image, "Monitor de Batería", menu)
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
@@ -98,7 +117,7 @@ class BatteryController:
             self.model.start()
             self.view.set_button_state(True)
 
-    # --- LÓGICA DE AUTOSTART ---
+    # --- LÓGICA DE AUTOSTART MULTIPLATAFORMA ---
     def is_autostart_enabled(self):
         system = platform.system()
         if system == "Windows":
