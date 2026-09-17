@@ -4,13 +4,14 @@ import customtkinter as ctk
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
+
 class BatteryView(ctk.CTk):
     def __init__(self, controller, initial_low, initial_high, initial_autostart):
         super().__init__()
         self.controller = controller
 
         self.title("Monitor de Batería")
-        self.geometry("420x510") # Ajustado para el switch de autostart
+        self.geometry("420x510")
         self.resizable(False, False)
 
         self.set_window_icon()
@@ -69,27 +70,41 @@ class BatteryView(ctk.CTk):
         self.controller.toggle_autostart(is_checked)
 
     def set_window_icon(self):
-        icon_path = "battery.ico"
-        if not os.path.exists(icon_path):
+        """Apunta a la carpeta assets/ para cargar el icono de la ventana."""
+        # 1. Definir la carpeta assets y el archivo de icono
+        assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
+        os.makedirs(assets_dir, exist_ok=True)  # Asegura que la carpeta exista
+        
+        icon_path = os.path.join(assets_dir, "battery.ico")
+        png_path = os.path.join(assets_dir, "battery.png") # Soporte adicional para PNG
+
+        # 2. Si no hay icono en assets, genera uno por defecto allí mismo
+        if not os.path.exists(icon_path) and not os.path.exists(png_path):
             try:
                 from PIL import Image, ImageDraw
                 img = Image.new('RGB', (64, 64), color=(33, 150, 243))
                 dc = ImageDraw.Draw(img)
                 dc.rectangle((16, 16, 48, 48), fill=(255, 255, 255))
                 img.save(icon_path, format='ICO')
-            except Exception:
-                pass
-        if os.path.exists(icon_path):
+            except Exception as e:
+                print(f"No se pudo crear icono por defecto en assets: {e}")
+
+        # 3. Intentar cargar el icono (.ico o .png) desde la carpeta assets
+        target_icon = icon_path if os.path.exists(icon_path) else png_path
+
+        if os.path.exists(target_icon):
             try:
-                self.iconbitmap(icon_path)
+                # Método nativo de Tkinter/CustomTkinter para .ico en Windows
+                self.iconbitmap(target_icon)
             except Exception:
                 try:
+                    # Método compatible con Linux / macOS usando PIL
                     from PIL import Image, ImageTk
-                    img = Image.open(icon_path)
+                    img = Image.open(target_icon)
                     photo = ImageTk.PhotoImage(img)
                     self.iconphoto(False, photo)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Error al aplicar icono a la ventana: {e}")
 
     def update(self, data):
         percent = data["percent"]
