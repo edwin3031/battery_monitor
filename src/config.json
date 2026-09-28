@@ -1,0 +1,5 @@
+{
+    "low_limit": 20,
+    "high_limit": 90,
+    "autostart": false
+}
